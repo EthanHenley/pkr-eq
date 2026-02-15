@@ -1,7 +1,36 @@
+import json
+import os
 from itertools import combinations
-from treys import Evaluator
+from treys import Card, Evaluator
 
 _evaluator = Evaluator()
+
+_PREFLOP_EQUITY_FILE = os.path.join(os.path.dirname(__file__), "preflop_equity.json")
+if os.path.exists(_PREFLOP_EQUITY_FILE):
+    with open(_PREFLOP_EQUITY_FILE) as _f:
+        _PREFLOP_EQUITY = json.load(_f)
+else:
+    _PREFLOP_EQUITY = {}
+
+_RANK_ORDER = "AKQJT98765432"
+
+
+def _hand_key(hole_cards):
+    """Convert two treys card ints to canonical notation (e.g. 'AKs', 'TT', '97o')."""
+    s1 = Card.int_to_str(hole_cards[0])
+    s2 = Card.int_to_str(hole_cards[1])
+    r1, suit1 = s1[0], s1[1]
+    r2, suit2 = s2[0], s2[1]
+    # Ensure higher rank comes first
+    if _RANK_ORDER.index(r1) > _RANK_ORDER.index(r2):
+        r1, r2 = r2, r1
+        suit1, suit2 = suit2, suit1
+    if r1 == r2:
+        return f"{r1}{r2}"
+    elif suit1 == suit2:
+        return f"{r1}{r2}s"
+    else:
+        return f"{r1}{r2}o"
 
 
 def calculate_equity(hole_cards, community_cards, num_opponents, remaining_cards):
@@ -10,6 +39,11 @@ def calculate_equity(hole_cards, community_cards, num_opponents, remaining_cards
     For preflop with many opponents this can be slow. We sample when the
     enumeration space is too large.
     """
+    if not community_cards and _PREFLOP_EQUITY:
+        key = _hand_key(hole_cards)
+        if key in _PREFLOP_EQUITY:
+            return _PREFLOP_EQUITY[key]
+
     board_needed = 5 - len(community_cards)
     remaining = list(remaining_cards)
 
