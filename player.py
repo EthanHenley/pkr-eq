@@ -39,7 +39,7 @@ class Player:
 
 
 class HumanPlayer(Player):
-    def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0):
+    def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0, equity=None):
         while True:
             if to_call == 0 and current_bet > 0:
                 # BB option: can check or raise, no fold
@@ -87,40 +87,70 @@ class HumanPlayer(Player):
 
 
 class AIPlayer(Player):
-    def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0):
+    def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0, equity=None):
+        if equity is None:
+            equity = 0.5
+        # Add noise so AI isn't perfectly predictable
+        noise = random.uniform(-0.07, 0.07)
+        eq = max(0.0, min(1.0, equity + noise))
+
         if to_call == 0:
-            # No bet to call: check, bet, or all-in
-            r = random.random()
-            if r < 0.50:
+            # No bet to face — can check or bet
+            if eq < 0.35:
+                # Weak hand: usually check, small bluff chance
+                if random.random() < 0.1:
+                    return self._make_bet(min_raise, max_raise, pot, fraction=0.4)
                 return "check", 0
-            elif r < 0.80:
-                amount = random.randint(min_raise, min(max_raise, pot))
-                if amount >= self.chips:
-                    return "all-in", self.chips
-                return "raise", amount
-            elif r < 0.95:
-                amount = random.randint(min_raise, max_raise)
-                if amount >= self.chips:
-                    return "all-in", self.chips
-                return "raise", amount
+            elif eq < 0.6:
+                # Medium hand: bet small sometimes, check otherwise
+                if random.random() < 0.5:
+                    return self._make_bet(min_raise, max_raise, pot, fraction=0.5)
+                return "check", 0
             else:
-                return "all-in", self.chips
+                # Strong hand: bet, small slowplay chance
+                if random.random() < 0.1:
+                    return "check", 0
+                fraction = 0.5 + (eq - 0.6) / 0.4 * 0.5  # 0.5–1.0 of pot
+                return self._make_bet(min_raise, max_raise, pot, fraction=fraction)
         else:
             # Facing a bet
-            r = random.random()
-            if r < 0.45:
-                if to_call >= self.chips:
+            pot_odds = to_call / (pot + to_call) if (pot + to_call) > 0 else 0.5
+
+            # All-in decision when pot-committed
+            if to_call >= self.chips:
+                if eq >= pot_odds:
                     return "all-in", self.chips
-                return "call", min(to_call, self.chips)
-            elif r < 0.70:
-                return "fold", 0
-            elif r < 0.90:
-                if min_raise > max_raise:
-                    # Can only call or fold
-                    return "call", min(to_call, self.chips)
-                amount = random.randint(min_raise, min(max_raise, max(min_raise, to_call * 3)))
-                if amount >= self.chips:
-                    return "all-in", self.chips
-                return "raise", amount
-            else:
+                else:
+                    return "fold", 0
+
+            # Strong value all-in
+            if eq > 0.85 and random.random() < 0.15:
                 return "all-in", self.chips
+
+            if eq < pot_odds * 0.8:
+                # Not enough equity to continue
+                return "fold", 0
+            elif eq < 0.6:
+                # Adequate equity — call
+                return "call", min(to_call, self.chips)
+            else:
+                # Strong hand — raise
+                if min_raise > max_raise:
+                    return "call", min(to_call, self.chips)
+                # Scale raise with equity
+                frac = (eq - 0.6) / 0.4  # 0.0–1.0
+                raise_to = int(min_raise + (max_raise - min_raise) * frac)
+                raise_to = max(min_raise, min(raise_to, max_raise))
+                if raise_to >= self.chips:
+                    return "all-in", self.chips
+                return "raise", raise_to
+
+    def _make_bet(self, min_raise, max_raise, pot, fraction=0.5):
+        """Helper to construct a bet/raise of a fraction of the pot."""
+        if min_raise > max_raise:
+            return "check", 0
+        target = max(min_raise, int(pot * fraction))
+        target = max(min_raise, min(target, max_raise))
+        if target >= self.chips:
+            return "all-in", self.chips
+        return "raise", target

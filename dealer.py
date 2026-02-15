@@ -201,7 +201,8 @@ class Dealer:
             if not isinstance(p, HumanPlayer):
                 self._ensure_equities()
 
-            action, amount = p.choose_action(to_call, min_raise_to, max_raise, self.table.pot, current_bet)
+            equity_val = self.table.equities.get(p.name, 0.5) if not isinstance(p, HumanPlayer) else None
+            action, amount = p.choose_action(to_call, min_raise_to, max_raise, self.table.pot, current_bet, equity=equity_val)
 
             if action == "fold":
                 p.fold()
