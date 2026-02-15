@@ -1,5 +1,5 @@
 from card import Deck
-from equity import calculate_equity, calculate_all_equities
+from equity import calculate_equity
 from display import (
     render_game_state, render_action, render_showdown,
     render_winner_no_showdown, render_elimination, wait_for_enter,
@@ -109,28 +109,43 @@ class Dealer:
                 return p
         return None
 
-    def _compute_equities(self):
-        """Compute equity for all players in hand; return human equity or None."""
+    def _compute_human_equity(self):
+        """Cheap single-player equity for the human (used for display)."""
+        human = self._get_human()
+        if human is None or not human.is_in_hand or not human.hole_cards:
+            return None
+        opponents = len([p for p in self._players_in_hand() if p is not human])
+        if opponents == 0:
+            return 1.0
+        return calculate_equity(
+            human.hole_cards,
+            self.table.community_cards,
+            opponents,
+            self.deck.cards,
+        )
+
+    def _ensure_equities(self):
+        """Compute per-player equities lazily, caching by board state.
+
+        Each player's equity is calculated from their own perspective:
+        only their hole cards + community cards, opponents treated as random.
+        """
+        board_key = tuple(self.table.community_cards)
+        if getattr(self, '_equities_board_key', None) == board_key:
+            return  # already computed for this board
         in_hand = self._players_in_hand()
         if len(in_hand) < 2:
             self.table.equities = {p.name: 1.0 for p in in_hand}
-            human = self._get_human()
-            return 1.0 if human and human.is_in_hand else None
-
-        hands = [(p.name, p.hole_cards) for p in in_hand if p.hole_cards]
-        if len(hands) < 2:
-            self.table.equities = {}
-            return None
-
-        remaining = self.deck.cards
-        self.table.equities = calculate_all_equities(
-            hands, self.table.community_cards, remaining,
-        )
-
-        human = self._get_human()
-        if human and human.is_in_hand:
-            return self.table.equities.get(human.name)
-        return None
+        else:
+            remaining = self.deck.cards
+            opponents = len(in_hand) - 1
+            for p in in_hand:
+                if p.hole_cards:
+                    self.table.equities[p.name] = calculate_equity(
+                        p.hole_cards, self.table.community_cards,
+                        opponents, remaining,
+                    )
+        self._equities_board_key = board_key
 
     def _render(self, equity=None):
         human = self._get_human()
@@ -180,8 +195,11 @@ class Dealer:
             max_raise = p.chips
             min_raise_to = current_bet + min_raise_size
 
-            equity = self._compute_equities()
+            equity = self._compute_human_equity()
             self._render(equity)
+
+            if not isinstance(p, HumanPlayer):
+                self._ensure_equities()
 
             action, amount = p.choose_action(to_call, min_raise_to, max_raise, self.table.pot, current_bet)
 
@@ -309,6 +327,7 @@ class Dealer:
     def play_hand(self):
         # Setup
         self.table.reset_for_hand()
+        self._equities_board_key = None
         self._rotate_dealer()
         self.deck.shuffle()
 
@@ -326,7 +345,7 @@ class Dealer:
         self._deal_hole_cards()
 
         # Preflop
-        equity = self._compute_equities()
+        equity = self._compute_human_equity()
         self._render(equity)
         wait_for_enter("Press Enter for preflop betting...")
 
@@ -337,7 +356,7 @@ class Dealer:
 
         # Flop
         self._deal_community(3)
-        equity = self._compute_equities()
+        equity = self._compute_human_equity()
         self._render(equity)
         wait_for_enter("Press Enter for flop betting...")
 
@@ -348,7 +367,7 @@ class Dealer:
 
         # Turn
         self._deal_community(1)
-        equity = self._compute_equities()
+        equity = self._compute_human_equity()
         self._render(equity)
         wait_for_enter("Press Enter for turn betting...")
 
@@ -359,7 +378,7 @@ class Dealer:
 
         # River
         self._deal_community(1)
-        equity = self._compute_equities()
+        equity = self._compute_human_equity()
         self._render(equity)
         wait_for_enter("Press Enter for river betting...")
 
