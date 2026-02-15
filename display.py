@@ -1,6 +1,8 @@
 import os
 from card import pretty_cards, pretty_card
 
+CHEAT_MODE = False
+
 
 def clear_screen():
     os.system("cls" if os.name == "nt" else "clear")
@@ -12,13 +14,6 @@ def render_game_state(human, table, players, equity=None, recommendation=None):
     print(f"  TEXAS HOLD'EM  |  Hand #{table.hand_count}  |  Blinds: ${table.small_blind}/${table.big_blind}")
     print("=" * 60)
 
-    # Community cards
-    if table.community_cards:
-        print(f"\n  Board: {pretty_cards(table.community_cards)}")
-    else:
-        print("\n  Board: --")
-
-    print(f"  Pot: ${table.pot}")
     print()
 
     # Other players
@@ -36,8 +31,21 @@ def render_game_state(human, table, players, equity=None, recommendation=None):
 
         pos = table.positions.get(p.name, " ")
         action_str = f"  ({p.last_action})" if p.last_action else ""
-        print(f"  {pos} {p.name:12s}  ${p.chips:>6}{status}{action_str}")
+        if CHEAT_MODE and p.is_in_hand and p.hole_cards:
+            hand_str = pretty_cards(p.hole_cards)
+            eq = table.equities.get(p.name)
+            eq_str = f"  {eq:.0%}" if eq is not None else ""
+            print(f"  {hand_str}  {pos} {p.name:12s}  ${p.chips:>6}{status}{action_str}{eq_str}")
+        else:
+            print(f"  {pos} {p.name:12s}  ${p.chips:>6}{status}{action_str}")
     print("-" * 60)
+
+    # Board and pot
+    if table.community_cards:
+        print(f"\n  Board: {pretty_cards(table.community_cards)}")
+    else:
+        print("\n  Board: --")
+    print(f"  Pot: ${table.pot}")
 
     # Human player
     print()

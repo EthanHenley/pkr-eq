@@ -1,12 +1,22 @@
+import argparse
 from player import HumanPlayer, AIPlayer
 from table import Table
 from dealer import Dealer
 from display import render_chip_counts, clear_screen, wait_for_enter
+import display
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--cheat", action="store_true", help="Show opponent hands and equities")
+    args = parser.parse_args()
+
+    display.CHEAT_MODE = args.cheat
+
     print("\n  Welcome to Texas Hold'em Tournament Simulator!")
     print("  9 players | $1000 starting stacks | $5/$10 blinds\n")
+    if args.cheat:
+        print("  ** CHEATER MODE ENABLED **\n")
 
     players = [HumanPlayer("You", 1000)]
     for i in range(1, 9):
