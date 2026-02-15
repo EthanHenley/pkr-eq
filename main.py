@@ -36,10 +36,6 @@ def main():
             break
 
         render_chip_counts(players)
-
-        if table.hand_count % table.escalate_every == 0:
-            print(f"  ** Blinds increasing to ${table.small_blind}/${table.big_blind} **\n")
-
         wait_for_enter()
 
 

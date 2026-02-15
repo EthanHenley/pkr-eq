@@ -18,3 +18,4 @@ class Table:
         self.hand_count += 1
         if self.hand_count > 0 and self.hand_count % self.escalate_every == 0:
             self.escalate_blinds()
+            print(f"\n  ** Blinds increasing to ${self.small_blind}/${self.big_blind} **\n")
