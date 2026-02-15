@@ -76,7 +76,9 @@ def _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_commu
     else:
         pot_odds = to_call / (pot + to_call) if (pot + to_call) > 0 else 0.5
         if to_call >= chips:
-            if equity >= pot_odds:
+            # Require both pot odds AND a minimum equity floor to call off stack
+            allin_floor = 0.5 if num_community == 0 else 0.4
+            if equity >= pot_odds and equity >= allin_floor:
                 return ("all-in", chips)
             else:
                 return ("fold", 0)

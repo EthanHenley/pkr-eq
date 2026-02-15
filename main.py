@@ -5,6 +5,10 @@ from dealer import Dealer
 from display import render_chip_counts, clear_screen, wait_for_enter
 import display
 
+SMALL_BLIND = 10
+BIG_BLIND = 20
+ESCALATE_EVERY = 10
+START_STACK = 1000
 
 def main():
     parser = argparse.ArgumentParser()
@@ -14,15 +18,15 @@ def main():
     display.CHEAT_MODE = args.cheat
 
     print("\n  Welcome to Texas Hold'em Tournament Simulator!")
-    print("  9 players | $1000 starting stacks | $5/$10 blinds\n")
+    print(f"  9 players | ${START_STACK} starting stacks | ${SMALL_BLIND}/${BIG_BLIND} blinds\n")
     if args.cheat:
         print("  ** CHEATER MODE ENABLED **\n")
 
-    players = [HumanPlayer("You", 1000)]
+    players = [HumanPlayer("You", START_STACK)]
     for i in range(1, 9):
-        players.append(AIPlayer(f"Player {i}", 1000))
+        players.append(AIPlayer(f"Player {i}", START_STACK))
 
-    table = Table(small_blind=5, big_blind=10, escalate_every=10)
+    table = Table(small_blind=SMALL_BLIND, big_blind=BIG_BLIND, escalate_every=ESCALATE_EVERY)
     dealer = Dealer(table, players)
 
     while True:
