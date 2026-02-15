@@ -38,50 +38,67 @@ class Player:
         return f"{self.name} (${self.chips})"
 
 
-def recommend_action(equity, to_call, pot, chips, min_raise, max_raise):
-    """Return a short recommendation string based on equity and pot odds."""
-    if equity is None:
-        return None
+def _compute_action(equity, to_call, pot, chips, min_raise, max_raise):
+    """Core pot-odds decision tree. Returns (action, amount)."""
     if to_call == 0:
         if equity < 0.35:
-            return "Check"
+            return ("check", 0)
         elif equity < 0.6:
             target = max(min_raise, int(pot * 0.5))
             target = min(target, max_raise)
             if min_raise > max_raise:
-                return "Check"
+                return ("check", 0)
             if target >= chips:
-                return f"All-in ${chips}"
-            return f"Bet ${target}"
+                return ("all-in", chips)
+            return ("raise", target)
         else:
             fraction = 0.5 + (equity - 0.6) / 0.4 * 0.5
             target = max(min_raise, int(pot * fraction))
             target = min(target, max_raise)
             if min_raise > max_raise:
-                return "Check"
+                return ("check", 0)
             if target >= chips:
-                return f"All-in ${chips}"
-            return f"Bet ${target}"
+                return ("all-in", chips)
+            return ("raise", target)
     else:
         pot_odds = to_call / (pot + to_call) if (pot + to_call) > 0 else 0.5
         if to_call >= chips:
             if equity >= pot_odds:
-                return f"All-in ${chips}"
+                return ("all-in", chips)
             else:
-                return "Fold"
+                return ("fold", 0)
         if equity < pot_odds * 0.8:
-            return "Fold"
+            return ("fold", 0)
         elif equity < 0.6:
-            return f"Call ${min(to_call, chips)}"
+            return ("call", min(to_call, chips))
         else:
             if min_raise > max_raise:
-                return f"Call ${min(to_call, chips)}"
+                return ("call", min(to_call, chips))
             frac = (equity - 0.6) / 0.4
             raise_to = int(min_raise + (max_raise - min_raise) * frac)
             raise_to = max(min_raise, min(raise_to, max_raise))
             if raise_to >= chips:
-                return f"All-in ${chips}"
-            return f"Raise ${raise_to}"
+                return ("all-in", chips)
+            return ("raise", raise_to)
+
+
+def recommend_action(equity, to_call, pot, chips, min_raise, max_raise):
+    """Return a short recommendation string based on equity and pot odds."""
+    if equity is None:
+        return None
+    action, amount = _compute_action(equity, to_call, pot, chips, min_raise, max_raise)
+    if action == "fold":
+        return "Fold"
+    if action == "check":
+        return "Check"
+    if action == "call":
+        return f"Call ${amount}"
+    if action == "all-in":
+        return f"All-in ${amount}"
+    # action == "raise"
+    if to_call == 0:
+        return f"Bet ${amount}"
+    return f"Raise ${amount}"
 
 
 class HumanPlayer(Player):
@@ -139,64 +156,4 @@ class AIPlayer(Player):
         # Add noise so AI isn't perfectly predictable
         noise = random.uniform(-0.07, 0.07)
         eq = max(0.0, min(1.0, equity + noise))
-
-        if to_call == 0:
-            # No bet to face — can check or bet
-            if eq < 0.35:
-                # Weak hand: usually check, small bluff chance
-                if random.random() < 0.1:
-                    return self._make_bet(min_raise, max_raise, pot, fraction=0.4)
-                return "check", 0
-            elif eq < 0.6:
-                # Medium hand: bet small sometimes, check otherwise
-                if random.random() < 0.5:
-                    return self._make_bet(min_raise, max_raise, pot, fraction=0.5)
-                return "check", 0
-            else:
-                # Strong hand: bet, small slowplay chance
-                if random.random() < 0.1:
-                    return "check", 0
-                fraction = 0.5 + (eq - 0.6) / 0.4 * 0.5  # 0.5–1.0 of pot
-                return self._make_bet(min_raise, max_raise, pot, fraction=fraction)
-        else:
-            # Facing a bet
-            pot_odds = to_call / (pot + to_call) if (pot + to_call) > 0 else 0.5
-
-            # All-in decision when pot-committed
-            if to_call >= self.chips:
-                if eq >= pot_odds:
-                    return "all-in", self.chips
-                else:
-                    return "fold", 0
-
-            # Strong value all-in
-            if eq > 0.85 and random.random() < 0.15:
-                return "all-in", self.chips
-
-            if eq < pot_odds * 0.8:
-                # Not enough equity to continue
-                return "fold", 0
-            elif eq < 0.6:
-                # Adequate equity — call
-                return "call", min(to_call, self.chips)
-            else:
-                # Strong hand — raise
-                if min_raise > max_raise:
-                    return "call", min(to_call, self.chips)
-                # Scale raise with equity
-                frac = (eq - 0.6) / 0.4  # 0.0–1.0
-                raise_to = int(min_raise + (max_raise - min_raise) * frac)
-                raise_to = max(min_raise, min(raise_to, max_raise))
-                if raise_to >= self.chips:
-                    return "all-in", self.chips
-                return "raise", raise_to
-
-    def _make_bet(self, min_raise, max_raise, pot, fraction=0.5):
-        """Helper to construct a bet/raise of a fraction of the pot."""
-        if min_raise > max_raise:
-            return "check", 0
-        target = max(min_raise, int(pot * fraction))
-        target = max(min_raise, min(target, max_raise))
-        if target >= self.chips:
-            return "all-in", self.chips
-        return "raise", target
+        return _compute_action(eq, to_call, pot, self.chips, min_raise, max_raise)
