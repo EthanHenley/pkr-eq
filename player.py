@@ -1,5 +1,10 @@
 import random
 
+# Self-preservation: AI avoids risking chips below this many big blinds
+SELF_PRESERVE_BB = 5
+# Probability that self-preservation kicks in when triggered
+SELF_PRESERVE_CHANCE = 0.50
+
 
 class Player:
     def __init__(self, name, chips=1000):
@@ -117,7 +122,7 @@ def recommend_action(equity, to_call, pot, chips, min_raise, max_raise, num_comm
 
 
 class HumanPlayer(Player):
-    def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0, equity=None, num_community=5):
+    def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0, equity=None, num_community=5, players_in_hand=2, big_blind=10):
         while True:
             if to_call == 0 and current_bet > 0:
                 # BB option: can check or raise, no fold
@@ -165,7 +170,7 @@ class HumanPlayer(Player):
 
 
 class AIPlayer(Player):
-    def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0, equity=None, num_community=5):
+    def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0, equity=None, num_community=5, players_in_hand=2, big_blind=10):
         if equity is None:
             equity = 0.5
         # Add noise so AI isn't perfectly predictable
@@ -185,4 +190,21 @@ class AIPlayer(Player):
                 if overbet >= min_raise:
                     return ("raise", overbet)
 
-        return _compute_action(eq, to_call, pot, self.chips, min_raise, max_raise, num_community)
+        action, amount = _compute_action(eq, to_call, pot, self.chips, min_raise, max_raise, num_community)
+
+        # Self-preservation: avoid risking elimination when many opponents remain
+        if players_in_hand > 2 and random.random() < SELF_PRESERVE_CHANCE:
+            preserve_floor = SELF_PRESERVE_BB * big_blind
+            chips_after = self.chips - amount if action in ("raise", "call") else 0
+            if action == "all-in" or (action in ("raise", "call") and chips_after < preserve_floor):
+                # Downgrade: call instead of raise, fold instead of call/all-in
+                if action in ("all-in", "raise"):
+                    if to_call == 0:
+                        return ("check", 0)
+                    if to_call <= self.chips - preserve_floor:
+                        return ("call", min(to_call, self.chips))
+                    return ("fold", 0)
+                if action == "call":
+                    return ("fold", 0)
+
+        return (action, amount)
