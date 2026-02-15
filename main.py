@@ -36,8 +36,18 @@ def main():
 
         human = players[0]
         if not human.is_active:
-            print("\n  You have been eliminated. Game over!\n")
-            break
+            if display.CHEAT_MODE:
+                choice = input("\n  You have been eliminated. Buy back in? [y/n]: ").strip().lower()
+                if choice == "y":
+                    human.chips = START_STACK
+                    human.is_active = True
+                    print(f"  Bought back in for ${START_STACK}.\n")
+                else:
+                    print("\n  Game over!\n")
+                    break
+            else:
+                print("\n  You have been eliminated. Game over!\n")
+                break
 
         if not dealer.play_hand():
             break
