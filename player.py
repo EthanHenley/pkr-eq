@@ -87,6 +87,11 @@ def _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_commu
                 return ("all-in", chips)
             else:
                 return ("fold", 0)
+        # Require higher equity to call overbets (to_call > pot)
+        if to_call > pot:
+            overbet_floor = 0.6 if num_community == 0 else 0.5
+            if equity < overbet_floor:
+                return ("fold", 0)
         if equity < pot_odds * fold_mult:
             return ("fold", 0)
         elif equity < strong_thresh:
