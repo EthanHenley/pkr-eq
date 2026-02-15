@@ -38,23 +38,36 @@ class Player:
         return f"{self.name} (${self.chips})"
 
 
-def _compute_action(equity, to_call, pot, chips, min_raise, max_raise):
+def _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_community=5):
     """Core pot-odds decision tree. Returns (action, amount)."""
+    # Street-aware thresholds: preflop uses tighter ranges
+    if num_community == 0:
+        check_thresh = 0.45
+        strong_thresh = 0.7
+        fold_mult = 0.9
+    else:
+        check_thresh = 0.35
+        strong_thresh = 0.6
+        fold_mult = 0.8
+
+    # Cap raise ceiling at 1.5x pot
+    raise_cap = min(max_raise, pot + to_call + int(pot * 1.5))
+
     if to_call == 0:
-        if equity < 0.35:
+        if equity < check_thresh:
             return ("check", 0)
-        elif equity < 0.6:
+        elif equity < strong_thresh:
             target = max(min_raise, int(pot * 0.5))
-            target = min(target, max_raise)
+            target = min(target, raise_cap)
             if min_raise > max_raise:
                 return ("check", 0)
             if target >= chips:
                 return ("all-in", chips)
             return ("raise", target)
         else:
-            fraction = 0.5 + (equity - 0.6) / 0.4 * 0.5
+            fraction = 0.5 + (equity - strong_thresh) / (1.0 - strong_thresh) * 0.5
             target = max(min_raise, int(pot * fraction))
-            target = min(target, max_raise)
+            target = min(target, raise_cap)
             if min_raise > max_raise:
                 return ("check", 0)
             if target >= chips:
@@ -67,26 +80,26 @@ def _compute_action(equity, to_call, pot, chips, min_raise, max_raise):
                 return ("all-in", chips)
             else:
                 return ("fold", 0)
-        if equity < pot_odds * 0.8:
+        if equity < pot_odds * fold_mult:
             return ("fold", 0)
-        elif equity < 0.6:
+        elif equity < strong_thresh:
             return ("call", min(to_call, chips))
         else:
             if min_raise > max_raise:
                 return ("call", min(to_call, chips))
-            frac = (equity - 0.6) / 0.4
-            raise_to = int(min_raise + (max_raise - min_raise) * frac)
-            raise_to = max(min_raise, min(raise_to, max_raise))
+            frac = (equity - strong_thresh) / (1.0 - strong_thresh)
+            raise_to = int(min_raise + (raise_cap - min_raise) * frac)
+            raise_to = max(min_raise, min(raise_to, raise_cap))
             if raise_to >= chips:
                 return ("all-in", chips)
             return ("raise", raise_to)
 
 
-def recommend_action(equity, to_call, pot, chips, min_raise, max_raise):
+def recommend_action(equity, to_call, pot, chips, min_raise, max_raise, num_community=5):
     """Return a short recommendation string based on equity and pot odds."""
     if equity is None:
         return None
-    action, amount = _compute_action(equity, to_call, pot, chips, min_raise, max_raise)
+    action, amount = _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_community)
     if action == "fold":
         return "Fold"
     if action == "check":
@@ -102,7 +115,7 @@ def recommend_action(equity, to_call, pot, chips, min_raise, max_raise):
 
 
 class HumanPlayer(Player):
-    def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0, equity=None):
+    def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0, equity=None, num_community=5):
         while True:
             if to_call == 0 and current_bet > 0:
                 # BB option: can check or raise, no fold
@@ -150,10 +163,24 @@ class HumanPlayer(Player):
 
 
 class AIPlayer(Player):
-    def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0, equity=None):
+    def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0, equity=None, num_community=5):
         if equity is None:
             equity = 0.5
         # Add noise so AI isn't perfectly predictable
         noise = random.uniform(-0.07, 0.07)
         eq = max(0.0, min(1.0, equity + noise))
-        return _compute_action(eq, to_call, pot, self.chips, min_raise, max_raise)
+
+        # Rare overbet/shove when facing a bet with very high equity
+        if to_call > 0 and eq > 0.85:
+            roll = random.random()
+            if roll < 0.01:
+                return ("all-in", self.chips)
+            elif roll < 0.15:
+                overbet = min(int(pot * 2), max_raise)
+                overbet = min(overbet, self.chips)
+                if overbet >= self.chips:
+                    return ("all-in", self.chips)
+                if overbet >= min_raise:
+                    return ("raise", overbet)
+
+        return _compute_action(eq, to_call, pot, self.chips, min_raise, max_raise, num_community)

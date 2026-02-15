@@ -198,14 +198,14 @@ class Dealer:
             equity = self._compute_human_equity()
             rec = None
             if isinstance(p, HumanPlayer) and equity is not None:
-                rec = recommend_action(equity, to_call, self.table.pot, p.chips, min_raise_to, max_raise)
+                rec = recommend_action(equity, to_call, self.table.pot, p.chips, min_raise_to, max_raise, num_community=len(self.table.community_cards))
             self._render(equity, rec)
 
             if not isinstance(p, HumanPlayer):
                 self._ensure_equities()
 
             equity_val = self.table.equities.get(p.name, 0.5) if not isinstance(p, HumanPlayer) else None
-            action, amount = p.choose_action(to_call, min_raise_to, max_raise, self.table.pot, current_bet, equity=equity_val)
+            action, amount = p.choose_action(to_call, min_raise_to, max_raise, self.table.pot, current_bet, equity=equity_val, num_community=len(self.table.community_cards))
 
             if action == "fold":
                 p.fold()
