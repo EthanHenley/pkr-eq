@@ -39,15 +39,21 @@ class Player:
 
 
 class HumanPlayer(Player):
-    def choose_action(self, to_call, min_raise, max_raise, pot):
+    def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0):
         while True:
-            if to_call == 0:
-                prompt = "[c]heck, [b]et amount, [f]old, [a]ll-in: "
+            if to_call == 0 and current_bet > 0:
+                # BB option: can check or raise, no fold
+                prompt = "[c]heck, [r]aise amount, [a]ll-in: "
+            elif to_call == 0:
+                prompt = "[c]heck, [b]et amount, [a]ll-in: "
             else:
                 prompt = f"[c]all ${to_call}, [r]aise amount, [f]old, [a]ll-in: "
             action = input(prompt).strip().lower()
 
             if action == "f":
+                if to_call == 0:
+                    print("You can check for free.")
+                    continue
                 return "fold", 0
             elif action == "c":
                 return ("call", min(to_call, self.chips)) if to_call > 0 else ("check", 0)
@@ -81,7 +87,7 @@ class HumanPlayer(Player):
 
 
 class AIPlayer(Player):
-    def choose_action(self, to_call, min_raise, max_raise, pot):
+    def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0):
         if to_call == 0:
             # No bet to call: check, bet, or all-in
             r = random.random()

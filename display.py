@@ -34,8 +34,9 @@ def render_game_state(human, table, players, equity=None):
         elif p.is_all_in:
             status = " [ALL-IN]"
 
+        pos = table.positions.get(p.name, " ")
         action_str = f"  ({p.last_action})" if p.last_action else ""
-        print(f"  {p.name:12s}  ${p.chips:>6}{status}{action_str}")
+        print(f"  {pos} {p.name:12s}  ${p.chips:>6}{status}{action_str}")
     print("-" * 60)
 
     # Human player
@@ -44,7 +45,9 @@ def render_game_state(human, table, players, equity=None):
         print(f"  Your hand: {pretty_cards(human.hole_cards)}")
     if equity is not None:
         print(f"  Equity: {equity:.1%}")
-    print(f"  Your chips: ${human.chips}")
+    human_pos = table.positions.get(human.name, "")
+    pos_label = {"D": " (Dealer)", "S": " (Small Blind)", "B": " (Big Blind)"}.get(human_pos, "")
+    print(f"  Your chips: ${human.chips}{pos_label}")
 
     if human.is_all_in:
         print("  ** ALL-IN **")

@@ -8,6 +8,7 @@ class Table:
         self.escalate_every = escalate_every
         self.hand_count = 0
         self.dealer_pos = 0
+        self.positions = {}  # player name → "D", "S", or "B"
 
     def escalate_blinds(self):
         self.small_blind *= 2
@@ -17,6 +18,7 @@ class Table:
         self.community_cards = []
         self.pot = 0
         self.contributions = {}
+        self.positions = {}
         self.hand_count += 1
         if self.hand_count > 0 and self.hand_count % self.escalate_every == 0:
             self.escalate_blinds()

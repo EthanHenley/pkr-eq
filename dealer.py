@@ -77,6 +77,11 @@ class Dealer:
                 bb_player = self.players[pos]
                 break
 
+        # Record positions
+        self.table.positions[self.players[self.table.dealer_pos].name] = "D"
+        self.table.positions[sb_player.name] = "S"
+        self.table.positions[bb_player.name] = "B"
+
         # Post
         sb_amount = sb_player.bet(min(self.table.small_blind, sb_player.chips))
         self._add_to_pot(sb_player, sb_amount)
@@ -170,7 +175,7 @@ class Dealer:
             equity = self._compute_equity()
             self._render(equity)
 
-            action, amount = p.choose_action(to_call, min_raise_to, max_raise, self.table.pot)
+            action, amount = p.choose_action(to_call, min_raise_to, max_raise, self.table.pot, current_bet)
 
             if action == "fold":
                 p.fold()
