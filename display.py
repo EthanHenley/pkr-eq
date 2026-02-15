@@ -6,7 +6,7 @@ def clear_screen():
     os.system("cls" if os.name == "nt" else "clear")
 
 
-def render_game_state(human, table, players, equity=None):
+def render_game_state(human, table, players, equity=None, recommendation=None):
     clear_screen()
     print("=" * 60)
     print(f"  TEXAS HOLD'EM  |  Hand #{table.hand_count}  |  Blinds: ${table.small_blind}/${table.big_blind}")
@@ -45,6 +45,8 @@ def render_game_state(human, table, players, equity=None):
         print(f"  Your hand: {pretty_cards(human.hole_cards)}")
     if equity is not None:
         print(f"  Equity: {equity:.1%}")
+    if recommendation:
+        print(f"  Suggested: {recommendation}")
     human_pos = table.positions.get(human.name, "")
     pos_label = {"D": " (Dealer)", "S": " (Small Blind)", "B": " (Big Blind)"}.get(human_pos, "")
     print(f"  Your chips: ${human.chips}{pos_label}")

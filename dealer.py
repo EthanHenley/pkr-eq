@@ -5,7 +5,7 @@ from display import (
     render_winner_no_showdown, render_elimination, wait_for_enter,
 )
 from treys import Evaluator
-from player import HumanPlayer
+from player import HumanPlayer, recommend_action
 
 _evaluator = Evaluator()
 
@@ -147,10 +147,10 @@ class Dealer:
                     )
         self._equities_board_key = board_key
 
-    def _render(self, equity=None):
+    def _render(self, equity=None, recommendation=None):
         human = self._get_human()
         if human:
-            render_game_state(human, self.table, self.players, equity)
+            render_game_state(human, self.table, self.players, equity, recommendation)
 
     def betting_round(self, is_preflop=False):
         if is_preflop:
@@ -196,7 +196,10 @@ class Dealer:
             min_raise_to = current_bet + min_raise_size
 
             equity = self._compute_human_equity()
-            self._render(equity)
+            rec = None
+            if isinstance(p, HumanPlayer) and equity is not None:
+                rec = recommend_action(equity, to_call, self.table.pot, p.chips, min_raise_to, max_raise)
+            self._render(equity, rec)
 
             if not isinstance(p, HumanPlayer):
                 self._ensure_equities()

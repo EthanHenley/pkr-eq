@@ -38,6 +38,52 @@ class Player:
         return f"{self.name} (${self.chips})"
 
 
+def recommend_action(equity, to_call, pot, chips, min_raise, max_raise):
+    """Return a short recommendation string based on equity and pot odds."""
+    if equity is None:
+        return None
+    if to_call == 0:
+        if equity < 0.35:
+            return "Check"
+        elif equity < 0.6:
+            target = max(min_raise, int(pot * 0.5))
+            target = min(target, max_raise)
+            if min_raise > max_raise:
+                return "Check"
+            if target >= chips:
+                return f"All-in ${chips}"
+            return f"Bet ${target}"
+        else:
+            fraction = 0.5 + (equity - 0.6) / 0.4 * 0.5
+            target = max(min_raise, int(pot * fraction))
+            target = min(target, max_raise)
+            if min_raise > max_raise:
+                return "Check"
+            if target >= chips:
+                return f"All-in ${chips}"
+            return f"Bet ${target}"
+    else:
+        pot_odds = to_call / (pot + to_call) if (pot + to_call) > 0 else 0.5
+        if to_call >= chips:
+            if equity >= pot_odds:
+                return f"All-in ${chips}"
+            else:
+                return "Fold"
+        if equity < pot_odds * 0.8:
+            return "Fold"
+        elif equity < 0.6:
+            return f"Call ${min(to_call, chips)}"
+        else:
+            if min_raise > max_raise:
+                return f"Call ${min(to_call, chips)}"
+            frac = (equity - 0.6) / 0.4
+            raise_to = int(min_raise + (max_raise - min_raise) * frac)
+            raise_to = max(min_raise, min(raise_to, max_raise))
+            if raise_to >= chips:
+                return f"All-in ${chips}"
+            return f"Raise ${raise_to}"
+
+
 class HumanPlayer(Player):
     def choose_action(self, to_call, min_raise, max_raise, pot, current_bet=0, equity=None):
         while True:
