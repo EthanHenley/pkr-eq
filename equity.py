@@ -107,6 +107,67 @@ def _equity_fixed_board(hole_cards, board, num_opponents, remaining):
     return (wins + ties / 2) / total
 
 
+def calculate_all_equities(hands, community_cards, remaining_cards, sample_size=300):
+    """Calculate equity for each player given known hole cards.
+
+    Args:
+        hands: list of (name, hole_cards) for each player in hand
+        community_cards: current board cards
+        remaining_cards: cards left in deck
+        sample_size: number of board runouts to sample
+
+    Returns:
+        dict of name → equity (0.0 to 1.0)
+    """
+    if len(hands) < 2:
+        return {hands[0][0]: 1.0} if hands else {}
+
+    board_needed = 5 - len(community_cards)
+    remaining = [c for c in remaining_cards
+                 if not any(c in h for _, h in hands)]
+
+    if board_needed == 0:
+        return _multiway_equity_fixed(hands, community_cards)
+
+    import random
+    from math import comb
+
+    board_combos_count = comb(len(remaining), board_needed)
+    if board_combos_count <= sample_size:
+        boards = list(combinations(remaining, board_needed))
+    else:
+        boards = [tuple(random.sample(remaining, board_needed))
+                  for _ in range(sample_size)]
+
+    wins = {name: 0.0 for name, _ in hands}
+    total = len(boards)
+
+    for board_draw in boards:
+        full_board = community_cards + list(board_draw)
+        scores = []
+        for name, hole in hands:
+            score = _evaluator.evaluate(full_board, hole)
+            scores.append((name, score))
+        best = min(s for _, s in scores)
+        winners = [name for name, s in scores if s == best]
+        share = 1.0 / len(winners)
+        for name in winners:
+            wins[name] += share
+
+    return {name: wins[name] / total for name, _ in hands}
+
+
+def _multiway_equity_fixed(hands, board):
+    scores = []
+    for name, hole in hands:
+        score = _evaluator.evaluate(board, hole)
+        scores.append((name, score))
+    best = min(s for _, s in scores)
+    winners = [name for name, s in scores if s == best]
+    share = 1.0 / len(winners)
+    return {name: (share if name in winners else 0.0) for name, _ in hands}
+
+
 def _eval_against_opponents(hole_cards, board, num_opponents, deck):
     """Enumerate opponent hands and count wins/ties.
 
