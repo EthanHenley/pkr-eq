@@ -53,19 +53,24 @@ def render_game_state(human, table, players, equity=None):
 
 def render_action(player_name, action, amount=0):
     name = f"{player_name:12s}"
+    you = _is_you(player_name)
     if action == "fold":
-        print(f"  >> {name} folds")
+        print(f"  >> {name} {'fold' if you else 'folds'}")
     elif action == "check":
-        print(f"  >> {name} checks")
+        print(f"  >> {name} {'check' if you else 'checks'}")
     elif action == "call":
-        print(f"  >> {name} calls ${amount}")
+        print(f"  >> {name} {'call' if you else 'calls'} ${amount}")
     elif action == "raise":
-        print(f"  >> {name} raises to ${amount}")
+        print(f"  >> {name} {'raise' if you else 'raises'} to ${amount}")
     elif action == "all-in":
-        print(f"  >> {name} goes ALL-IN for ${amount}")
+        print(f"  >> {name} {'go' if you else 'goes'} ALL-IN for ${amount}")
 
 
-def render_showdown(winners, hands, board, pot):
+def _is_you(name):
+    return name.lower().strip() == "you"
+
+
+def render_showdown(awards, hands, board, total_pot):
     print("\n" + "=" * 60)
     print("  SHOWDOWN")
     print("=" * 60)
@@ -76,17 +81,22 @@ def render_showdown(winners, hands, board, pot):
     for name, cards, rank_str in hands:
         print(f"  {name:{pad}s}  {pretty_cards(cards)}  ({rank_str})")
     print()
-    if len(winners) == 1:
-        print(f"  >> {winners[0].name} wins ${pot}")
-    else:
-        split = pot // len(winners)
-        names = ", ".join(w.name for w in winners)
-        print(f"  >> Split pot: {names} each win ${split}")
+    # Aggregate awards per player across side pots
+    totals = {}
+    for winner_names, amount in awards:
+        if len(winner_names) == 1:
+            totals[winner_names[0]] = totals.get(winner_names[0], 0) + amount
+        else:
+            share = amount // len(winner_names)
+            for name in winner_names:
+                totals[name] = totals.get(name, 0) + share
+    for name, amount in totals.items():
+        print(f"  >> {name} {'win' if _is_you(name) else 'wins'} ${amount}")
     print()
 
 
 def render_winner_no_showdown(winner, pot):
-    print(f"\n  >> Everyone folds. {winner.name} wins ${pot}\n")
+    print(f"\n  >> Everyone folds. {winner.name} {'win' if _is_you(winner.name) else 'wins'} ${pot}\n")
 
 
 def render_elimination(player):

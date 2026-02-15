@@ -25,6 +25,10 @@ class Dealer:
     def _players_can_act(self):
         return [p for p in self.players if p.is_in_hand and not p.is_all_in]
 
+    def _add_to_pot(self, player, amount):
+        self.table.pot += amount
+        self.table.contributions[player.name] = self.table.contributions.get(player.name, 0) + amount
+
     def _rotate_dealer(self):
         active = self._active_players()
         if len(active) < 2:
@@ -75,11 +79,11 @@ class Dealer:
 
         # Post
         sb_amount = sb_player.bet(min(self.table.small_blind, sb_player.chips))
-        self.table.pot += sb_amount
+        self._add_to_pot(sb_player, sb_amount)
         sb_player.last_action = f"SB ${sb_amount}"
 
         bb_amount = bb_player.bet(min(self.table.big_blind, bb_player.chips))
-        self.table.pot += bb_amount
+        self._add_to_pot(bb_player, bb_amount)
         bb_player.last_action = f"BB ${bb_amount}"
 
         return bb_amount  # current bet to match
@@ -176,7 +180,7 @@ class Dealer:
                 render_action(p.name, "check")
             elif action == "call":
                 actual = p.bet(to_call)
-                self.table.pot += actual
+                self._add_to_pot(p, actual)
                 p.last_action = f"call ${actual}"
                 render_action(p.name, "call", actual)
             elif action == "raise":
@@ -184,7 +188,7 @@ class Dealer:
                 raise_to = amount
                 additional = raise_to - p.current_bet
                 actual = p.bet(additional)
-                self.table.pot += actual
+                self._add_to_pot(p, actual)
                 new_bet = p.current_bet
                 if new_bet > current_bet:
                     min_raise_size = new_bet - current_bet
@@ -202,7 +206,7 @@ class Dealer:
                 render_action(p.name, "raise", p.current_bet)
             elif action == "all-in":
                 actual = p.bet(p.chips)
-                self.table.pot += actual
+                self._add_to_pot(p, actual)
                 new_bet = p.current_bet
                 if new_bet > current_bet:
                     min_raise_size = max(min_raise_size, new_bet - current_bet)
@@ -228,6 +232,29 @@ class Dealer:
         for p in self._players_in_hand():
             p.reset_for_round()
 
+    def _build_side_pots(self):
+        contributions = self.table.contributions
+        in_hand = self._players_in_hand()
+        # Include folded players' contributions too (they just aren't eligible)
+        entries = sorted(
+            ((name, amt) for name, amt in contributions.items()),
+            key=lambda x: x[1],
+        )
+        eligible_names = {p.name for p in in_hand}
+        pots = []
+        allocated = 0
+        for i, (_, level) in enumerate(entries):
+            if level <= allocated:
+                continue
+            slice_per_player = level - allocated
+            # Every player who contributed >= this level pays into this pot
+            contributors = [name for name, amt in entries if amt > allocated]
+            pot_amount = slice_per_player * len(contributors)
+            eligible = [name for name in contributors if name in eligible_names]
+            pots.append((pot_amount, eligible))
+            allocated = level
+        return pots
+
     def showdown(self):
         in_hand = self._players_in_hand()
         board = self.table.community_cards
@@ -239,27 +266,32 @@ class Dealer:
             return
 
         # Evaluate hands
-        results = []
+        results = {}
+        hands_info = []
         for p in in_hand:
             score = _evaluator.evaluate(board, p.hole_cards)
             rank_class = _evaluator.get_rank_class(score)
             rank_str = _evaluator.class_to_string(rank_class)
-            results.append((p, score, rank_str))
+            results[p.name] = (p, score)
+            hands_info.append((p.name, p.hole_cards, rank_str))
 
-        results.sort(key=lambda x: x[1])  # lower is better
-        best_score = results[0][1]
-        winners = [r[0] for r in results if r[1] == best_score]
+        # Build side pots and award each
+        side_pots = self._build_side_pots()
+        awards = []  # list of (winner_names, amount)
+        for pot_amount, eligible in side_pots:
+            if not eligible:
+                continue
+            best_score = min(results[name][1] for name in eligible if name in results)
+            pot_winners = [name for name in eligible if name in results and results[name][1] == best_score]
+            share = pot_amount // len(pot_winners)
+            remainder = pot_amount % len(pot_winners)
+            for name in pot_winners:
+                results[name][0].chips += share
+            if remainder > 0:
+                results[pot_winners[0]][0].chips += remainder
+            awards.append((pot_winners, pot_amount))
 
-        hands_info = [(p.name, p.hole_cards, rank_str) for p, _, rank_str in results]
-        render_showdown(winners, hands_info, board, self.table.pot)
-
-        # Award pot
-        share = self.table.pot // len(winners)
-        remainder = self.table.pot % len(winners)
-        for w in winners:
-            w.chips += share
-        if remainder > 0:
-            winners[0].chips += remainder
+        render_showdown(awards, hands_info, board, self.table.pot)
 
     def play_hand(self):
         # Setup
