@@ -135,7 +135,7 @@ class HumanPlayer(Player):
             elif to_call == 0:
                 prompt = f"[c]heck, [b]et {min_raise}+, [a]ll-in: "
             else:
-                prompt = f"[c]all ${to_call}, [r]aise {min_raise}+, [f]old, [a]ll-in: "
+                prompt = f"[c]all {to_call}, [r]aise {min_raise}+, [f]old, [a]ll-in: "
             action = input(prompt).strip().lower()
 
             if action == "f":
