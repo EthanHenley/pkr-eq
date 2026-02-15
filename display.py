@@ -19,23 +19,25 @@ def render_game_state(human, table, players, equity=None, recommendation=None):
     # Other players
     print("-" * 60)
     for p in players:
-        if p is human:
+        if p is human or not p.is_active:
             continue
         status = ""
-        if not p.is_active:
-            status = " [ELIMINATED]"
-        elif not p.is_in_hand:
+        if not p.is_in_hand:
             status = " [FOLDED]"
         elif p.is_all_in:
             status = " [ALL-IN]"
 
         pos = table.positions.get(p.name, " ")
         action_str = f"  ({p.last_action})" if p.last_action else ""
-        if CHEAT_MODE and p.is_in_hand and p.hole_cards:
-            hand_str = pretty_cards(p.hole_cards)
-            eq = table.equities.get(p.name)
-            eq_str = f"  {eq:.0%}" if eq is not None else ""
-            print(f"  {hand_str}  {pos} {p.name:12s}  ${p.chips:>6}{status}{action_str}{eq_str}")
+        if CHEAT_MODE:
+            if p.is_in_hand and p.hole_cards:
+                hand_str = pretty_cards(p.hole_cards)
+                eq = table.equities.get(p.name)
+                eq_str = f"  {eq:.0%}" if eq is not None else ""
+                print(f"  {hand_str}  {pos} {p.name:12s}  ${p.chips:>6}{status}{action_str}{eq_str}")
+            else:
+                # Pad to match card width ("A♠ K♠" = 5 visible chars + 2 spaces)
+                print(f"  {'':5s}  {pos} {p.name:12s}  ${p.chips:>6}{status}{action_str}")
         else:
             print(f"  {pos} {p.name:12s}  ${p.chips:>6}{status}{action_str}")
     print("-" * 60)

@@ -102,7 +102,7 @@ def _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_commu
             return ("raise", raise_to)
 
 
-def recommend_action(equity, to_call, pot, chips, min_raise, max_raise, num_community=5):
+def recommend_action(equity, to_call, pot, chips, min_raise, max_raise, num_community=5, current_bet=0):
     """Return a short recommendation string based on equity and pot odds."""
     if equity is None:
         return None
@@ -116,7 +116,7 @@ def recommend_action(equity, to_call, pot, chips, min_raise, max_raise, num_comm
     if action == "all-in":
         return f"All-in ${amount}"
     # action == "raise"
-    if to_call == 0:
+    if to_call == 0 and current_bet == 0:
         return f"Bet ${amount}"
     return f"Raise ${amount}"
 
@@ -126,11 +126,11 @@ class HumanPlayer(Player):
         while True:
             if to_call == 0 and current_bet > 0:
                 # BB option: can check or raise, no fold
-                prompt = "[c]heck, [r]aise amount, [a]ll-in: "
+                prompt = f"[c]heck, [r]aise {min_raise}+, [a]ll-in: "
             elif to_call == 0:
-                prompt = "[c]heck, [b]et amount, [a]ll-in: "
+                prompt = f"[c]heck, [b]et {min_raise}+, [a]ll-in: "
             else:
-                prompt = f"[c]all ${to_call}, [r]aise amount, [f]old, [a]ll-in: "
+                prompt = f"[c]all ${to_call}, [r]aise {min_raise}+, [f]old, [a]ll-in: "
             action = input(prompt).strip().lower()
 
             if action == "f":
