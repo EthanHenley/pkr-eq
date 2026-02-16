@@ -198,7 +198,7 @@ class Dealer:
             equity = self._compute_human_equity()
             rec = None
             if isinstance(p, HumanPlayer) and equity is not None:
-                rec = recommend_action(equity, to_call, self.table.pot, p.chips, min_raise_to, max_raise, num_community=len(self.table.community_cards), current_bet=current_bet)
+                rec = recommend_action(equity, to_call, self.table.pot, p.chips, min_raise_to, max_raise, num_community=len(self.table.community_cards), current_bet=current_bet, players_in_hand=len(self._players_in_hand()))
             self._render(equity, rec, to_call if isinstance(p, HumanPlayer) else 0, min_raise_to if isinstance(p, HumanPlayer) else 0)
 
             if not isinstance(p, HumanPlayer):

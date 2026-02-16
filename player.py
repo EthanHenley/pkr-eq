@@ -43,7 +43,7 @@ class Player:
         return f"{self.name} (${self.chips})"
 
 
-def _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_community=5):
+def _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_community=5, players_in_hand=9):
     """Core pot-odds decision tree. Returns (action, amount)."""
     # Street-aware thresholds: preflop uses tighter ranges
     if num_community == 0:
@@ -87,6 +87,12 @@ def _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_commu
                 return ("all-in", chips)
             else:
                 return ("fold", 0)
+        # Preflop: require minimum equity to call, scaling with player count
+        # (skip when 3 or fewer players — equities are naturally higher)
+        if num_community == 0 and players_in_hand > 3:
+            preflop_floor = 0.30 + players_in_hand * 0.02
+            if equity < preflop_floor:
+                return ("fold", 0)
         # Require higher equity to call overbets (to_call > pot)
         if to_call > pot:
             overbet_floor = 0.6 if num_community == 0 else 0.5
@@ -107,11 +113,11 @@ def _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_commu
             return ("raise", raise_to)
 
 
-def recommend_action(equity, to_call, pot, chips, min_raise, max_raise, num_community=5, current_bet=0):
+def recommend_action(equity, to_call, pot, chips, min_raise, max_raise, num_community=5, current_bet=0, players_in_hand=9):
     """Return a short recommendation string based on equity and pot odds."""
     if equity is None:
         return None
-    action, amount = _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_community)
+    action, amount = _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_community, players_in_hand)
     if action == "fold":
         return "Fold"
     if action == "check":
@@ -195,7 +201,7 @@ class AIPlayer(Player):
                 if overbet >= min_raise:
                     return ("raise", overbet)
 
-        action, amount = _compute_action(eq, to_call, pot, self.chips, min_raise, max_raise, num_community)
+        action, amount = _compute_action(eq, to_call, pot, self.chips, min_raise, max_raise, num_community, players_in_hand)
 
         # Self-preservation: avoid risking elimination when many opponents remain
         if players_in_hand > 2 and random.random() < SELF_PRESERVE_CHANCE:
