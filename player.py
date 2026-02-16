@@ -43,20 +43,29 @@ class Player:
         return f"{self.name} (${self.chips})"
 
 
-def _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_community=5, players_in_hand=9):
-    """Core pot-odds decision tree. Returns (action, amount)."""
-    # Street-aware thresholds: preflop uses tighter ranges
-    if num_community == 0:
-        check_thresh = 0.45
-        strong_thresh = 0.7
-        fold_mult = 0.9
-    else:
+def _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_community=5, players_in_hand=9, is_user=False):
+    """Core pot-odds decision tree. Returns (action, amount).
+
+    When is_user=True, uses pure pot-odds logic without AI-tuned
+    special cases (street thresholds, overbet floors, preflop floors).
+    """
+    if is_user:
         check_thresh = 0.35
         strong_thresh = 0.6
-        fold_mult = 0.8
-
-    # Cap raise ceiling at 1.5x pot
-    raise_cap = min(max_raise, pot + to_call + int(pot * 1.5))
+        fold_mult = 1.0
+        raise_cap = max_raise
+    else:
+        # Street-aware thresholds: preflop uses tighter ranges
+        if num_community == 0:
+            check_thresh = 0.45
+            strong_thresh = 0.7
+            fold_mult = 0.9
+        else:
+            check_thresh = 0.35
+            strong_thresh = 0.6
+            fold_mult = 0.8
+        # Cap raise ceiling at 1.5x pot
+        raise_cap = min(max_raise, pot + to_call + int(pot * 1.5))
 
     if to_call == 0:
         if equity < check_thresh:
@@ -81,23 +90,29 @@ def _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_commu
     else:
         pot_odds = to_call / (pot + to_call) if (pot + to_call) > 0 else 0.5
         if to_call >= chips:
-            # Require both pot odds AND a minimum equity floor to call off stack
-            allin_floor = 0.5 if num_community == 0 else 0.4
-            if equity >= pot_odds and equity >= allin_floor:
-                return ("all-in", chips)
+            if not is_user:
+                # Require both pot odds AND a minimum equity floor to call off stack
+                allin_floor = 0.5 if num_community == 0 else 0.4
+                if equity >= pot_odds and equity >= allin_floor:
+                    return ("all-in", chips)
+                else:
+                    return ("fold", 0)
             else:
-                return ("fold", 0)
-        # Preflop: require minimum equity to call, scaling with player count
-        # (skip when 3 or fewer players — equities are naturally higher)
-        if num_community == 0 and players_in_hand > 3:
-            preflop_floor = 0.30 + players_in_hand * 0.02
-            if equity < preflop_floor:
-                return ("fold", 0)
-        # Require higher equity to call overbets (to_call > pot)
-        if to_call > pot:
-            overbet_floor = 0.6 if num_community == 0 else 0.5
-            if equity < overbet_floor:
-                return ("fold", 0)
+                if equity >= pot_odds:
+                    return ("all-in", chips)
+                else:
+                    return ("fold", 0)
+        if not is_user:
+            # Preflop: require minimum equity to call, scaling with player count
+            if num_community == 0 and players_in_hand > 3:
+                preflop_floor = 0.30 + players_in_hand * 0.02
+                if equity < preflop_floor:
+                    return ("fold", 0)
+            # Require higher equity to call overbets (to_call > pot)
+            if to_call > pot:
+                overbet_floor = 0.6 if num_community == 0 else 0.5
+                if equity < overbet_floor:
+                    return ("fold", 0)
         if equity < pot_odds * fold_mult:
             return ("fold", 0)
         elif equity < strong_thresh:
@@ -117,7 +132,7 @@ def recommend_action(equity, to_call, pot, chips, min_raise, max_raise, num_comm
     """Return a short recommendation string based on equity and pot odds."""
     if equity is None:
         return None
-    action, amount = _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_community, players_in_hand)
+    action, amount = _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_community, is_user=True)
     if action == "fold":
         return "Fold"
     if action == "check":
@@ -144,6 +159,8 @@ class HumanPlayer(Player):
                 prompt = f"[c]all {to_call}, [r]aise {min_raise}+, [f]old, [a]ll-in: "
             action = input(prompt).strip().lower()
 
+            if action == "x":
+                return _compute_action(equity if equity is not None else 0.5, to_call, pot, self.chips, min_raise, max_raise, num_community, is_user=True)
             if action == "f":
                 if to_call == 0:
                     print("You can check for free.")
@@ -161,6 +178,8 @@ class HumanPlayer(Player):
                     except ValueError:
                         print("Invalid amount.")
                         continue
+                elif action == "b" or action == "r":
+                    amount = min_raise
                 else:
                     try:
                         amount = int(input("Amount: ").strip())

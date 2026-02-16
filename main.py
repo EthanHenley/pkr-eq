@@ -56,7 +56,11 @@ def main():
 
         active = [p for p in players if p.is_active]
         if len(active) == 1:
-            print(f"\n  {active[0].name} wins the tournament!\n")
+            winner = active[0]
+            if winner.name.lower().strip() == "you":
+                print(f"\n  You win the tournament!\n")
+            else:
+                print(f"\n  {winner.name} wins the tournament!\n")
             break
 
         render_chip_counts(players)
