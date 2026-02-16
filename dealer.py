@@ -147,10 +147,10 @@ class Dealer:
                     )
         self._equities_board_key = board_key
 
-    def _render(self, equity=None, recommendation=None, to_call=0):
+    def _render(self, equity=None, recommendation=None, to_call=0, min_bet=0):
         human = self._get_human()
         if human:
-            render_game_state(human, self.table, self.players, equity, recommendation, to_call)
+            render_game_state(human, self.table, self.players, equity, recommendation, to_call, min_bet)
 
     def betting_round(self, is_preflop=False):
         if is_preflop:
@@ -199,7 +199,7 @@ class Dealer:
             rec = None
             if isinstance(p, HumanPlayer) and equity is not None:
                 rec = recommend_action(equity, to_call, self.table.pot, p.chips, min_raise_to, max_raise, num_community=len(self.table.community_cards), current_bet=current_bet)
-            self._render(equity, rec, to_call if isinstance(p, HumanPlayer) else 0)
+            self._render(equity, rec, to_call if isinstance(p, HumanPlayer) else 0, min_raise_to if isinstance(p, HumanPlayer) else 0)
 
             if not isinstance(p, HumanPlayer):
                 self._ensure_equities()

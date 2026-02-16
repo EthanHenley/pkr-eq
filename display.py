@@ -8,7 +8,7 @@ def clear_screen():
     os.system("cls" if os.name == "nt" else "clear")
 
 
-def render_game_state(human, table, players, equity=None, recommendation=None, to_call=0):
+def render_game_state(human, table, players, equity=None, recommendation=None, to_call=0, min_bet=0):
     clear_screen()
     print("=" * 60)
     print(f"  TEXAS HOLD'EM  |  Hand #{table.hand_count}  |  Blinds: ${table.small_blind}/${table.big_blind}")
@@ -56,7 +56,10 @@ def render_game_state(human, table, players, equity=None, recommendation=None, t
     if equity is not None:
         if to_call > 0:
             pot_odds = to_call / (table.pot + to_call)
-            print(f"  Equity: {equity:.1%}  |  Pot odds: {pot_odds:.1%}")
+            print(f"  Equity: {equity:.1%}  |  Pot odds to call: {pot_odds:.1%}")
+        elif min_bet > 0:
+            pot_odds = min_bet / (table.pot + min_bet)
+            print(f"  Equity: {equity:.1%}  |  Pot odds to min bet: {pot_odds:.1%}")
         else:
             print(f"  Equity: {equity:.1%}")
     if recommendation:
