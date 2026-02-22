@@ -15,11 +15,22 @@ RANK_MAP = {
 }
 
 
+_RESET = "\033[0m"
+_SUIT_COLORS = {
+    "h": "\033[31m",    # red
+    "d": "\033[33m",    # orange
+    "s": "\033[34m",    # blue
+    "c": "\033[32m",    # green
+}
+
+
 def pretty_card(card_int):
     s = Card.int_to_str(card_int)
     rank = s[0]
     suit = s[1].lower()
-    return f"{RANK_MAP[rank]}{SUIT_SYMBOLS.get(suit, suit)}"
+    symbol = SUIT_SYMBOLS.get(suit, suit)
+    color = _SUIT_COLORS.get(suit, "")
+    return f"{color}{RANK_MAP[rank]}{symbol}{_RESET}"
 
 
 def pretty_cards(card_ints):

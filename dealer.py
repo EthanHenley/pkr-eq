@@ -1,5 +1,6 @@
 from card import Deck
 from equity import calculate_equity
+import display
 from display import (
     render_game_state, render_action, render_showdown,
     render_winner_no_showdown, render_elimination, wait_for_enter,
@@ -360,6 +361,8 @@ class Dealer:
 
         # Flop
         self._deal_community(3)
+        if display.CHEAT_MODE:
+            self._ensure_equities()
         equity = self._compute_human_equity()
         self._render(equity)
         wait_for_enter("Press Enter for flop betting...")
@@ -371,6 +374,8 @@ class Dealer:
 
         # Turn
         self._deal_community(1)
+        if display.CHEAT_MODE:
+            self._ensure_equities()
         equity = self._compute_human_equity()
         self._render(equity)
         wait_for_enter("Press Enter for turn betting...")
@@ -382,6 +387,8 @@ class Dealer:
 
         # River
         self._deal_community(1)
+        if display.CHEAT_MODE:
+            self._ensure_equities()
         equity = self._compute_human_equity()
         self._render(equity)
         wait_for_enter("Press Enter for river betting...")
