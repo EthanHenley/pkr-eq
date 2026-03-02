@@ -47,23 +47,26 @@ def _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_commu
     """Core pot-odds decision tree. Returns (action, amount).
 
     When is_user=True, uses pure pot-odds logic without AI-tuned
-    special cases (street thresholds, overbet floors, preflop floors).
+    special cases (street-aware thresholds, raise cap).
+    All thresholds scale by 2/N to stay relative to fair share in multi-way pots.
     """
+    # Scale all thresholds by 2/N so they stay relative to fair share in multi-way pots
+    scale = 2.0 / max(players_in_hand, 2)
     if is_user:
-        check_thresh = 0.35
-        strong_thresh = 0.6
-        fold_mult = 1.0
+        check_thresh = 0.35 * scale
+        strong_thresh = 0.6 * scale
+        fold_mult = 1.0  # strict pot odds — consistent with displayed pot odds number
         raise_cap = max_raise
     else:
         # Street-aware thresholds: preflop uses tighter ranges
         if num_community == 0:
-            check_thresh = 0.45
-            strong_thresh = 0.7
-            fold_mult = 0.9
+            check_thresh = 0.45 * scale
+            strong_thresh = 0.70 * scale
+            fold_mult = min(1.0, 1.25 * scale)  # fold if equity < fair share (≈1/N)
         else:
-            check_thresh = 0.35
-            strong_thresh = 0.6
-            fold_mult = 0.8
+            check_thresh = 0.35 * scale
+            strong_thresh = 0.60 * scale
+            fold_mult = 0.8 * scale
         # Cap raise ceiling at 1.5x pot
         raise_cap = min(max_raise, pot + to_call + int(pot * 1.5))
 
@@ -92,7 +95,7 @@ def _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_commu
         if to_call >= chips:
             if not is_user:
                 # Require both pot odds AND a minimum equity floor to call off stack
-                allin_floor = 0.5 if num_community == 0 else 0.4
+                allin_floor = (0.5 if num_community == 0 else 0.4) * scale
                 if equity >= pot_odds and equity >= allin_floor:
                     return ("all-in", chips)
                 else:
@@ -102,17 +105,10 @@ def _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_commu
                     return ("all-in", chips)
                 else:
                     return ("fold", 0)
-        if not is_user:
-            # Preflop: require minimum equity to call, scaling with player count
-            if num_community == 0 and players_in_hand > 3:
-                preflop_floor = 0.30 + players_in_hand * 0.02
-                if equity < preflop_floor:
-                    return ("fold", 0)
-            # Require higher equity to call overbets (to_call > pot)
-            if to_call > pot:
-                overbet_floor = 0.6 if num_community == 0 else 0.5
-                if equity < overbet_floor:
-                    return ("fold", 0)
+        if not is_user and num_community == 0 and players_in_hand > 2:
+            # Preflop: fold if below fair share (1/N), regardless of price
+            if equity < 1.1 / players_in_hand:
+                return ("fold", 0)
         if equity < pot_odds * fold_mult:
             return ("fold", 0)
         elif equity < strong_thresh:
@@ -132,7 +128,7 @@ def recommend_action(equity, to_call, pot, chips, min_raise, max_raise, num_comm
     """Return a short recommendation string based on equity and pot odds."""
     if equity is None:
         return None
-    action, amount = _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_community, is_user=True)
+    action, amount = _compute_action(equity, to_call, pot, chips, min_raise, max_raise, num_community, players_in_hand, is_user=True)
     if action == "fold":
         return "Fold"
     if action == "check":

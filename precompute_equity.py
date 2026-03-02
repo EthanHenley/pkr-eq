@@ -1,4 +1,4 @@
-"""Generate preflop_equity.json with 1v1 equity for all 169 hand categories."""
+"""Generate preflop_equity.json with equity for all 169 hand categories x 1-8 opponents."""
 
 import json
 import random
@@ -7,7 +7,7 @@ from treys import Card, Deck, Evaluator
 
 RANKS = "AKQJT98765432"
 evaluator = Evaluator()
-NUM_SIMULATIONS = 10000
+NUM_SIMULATIONS = 5000  # per hand category per opponent count
 
 
 def hand_categories():
@@ -35,8 +35,11 @@ def representative_cards(hand_key):
         return [Card.new(f"{r1}s"), Card.new(f"{r2}h")]
 
 
-def simulate_equity(hole, num_sims=NUM_SIMULATIONS):
-    """Monte Carlo 1v1 equity: random opponent + random board."""
+def simulate_equity(hole, num_opponents, num_sims=NUM_SIMULATIONS):
+    """Monte Carlo equity vs num_opponents random opponents + random board.
+
+    Hero wins only if they beat ALL opponents.
+    """
     full_deck = Deck.GetFullDeck()
     remaining = [c for c in full_deck if c not in hole]
 
@@ -44,17 +47,23 @@ def simulate_equity(hole, num_sims=NUM_SIMULATIONS):
     ties = 0
     total = 0
 
+    cards_needed = 5 + 2 * num_opponents  # board + all opponent hands
+
     for _ in range(num_sims):
-        drawn = random.sample(remaining, 7)  # 5 board + 2 opponent
+        drawn = random.sample(remaining, cards_needed)
         board = drawn[:5]
-        opp = drawn[5:7]
-
         hero_score = evaluator.evaluate(board, hole)
-        opp_score = evaluator.evaluate(board, opp)
 
-        if hero_score < opp_score:
+        best_opp_score = None
+        for o in range(num_opponents):
+            opp = drawn[5 + o * 2: 7 + o * 2]
+            opp_score = evaluator.evaluate(board, opp)
+            if best_opp_score is None or opp_score < best_opp_score:
+                best_opp_score = opp_score
+
+        if hero_score < best_opp_score:
             wins += 1
-        elif hero_score == opp_score:
+        elif hero_score == best_opp_score:
             ties += 1
         total += 1
 
@@ -62,22 +71,33 @@ def simulate_equity(hole, num_sims=NUM_SIMULATIONS):
 
 
 def main():
-    results = {}
     categories = list(hand_categories())
-    print(f"Computing equity for {len(categories)} hand categories "
-          f"({NUM_SIMULATIONS} sims each)...")
+    opponent_counts = list(range(1, 9))  # 1 through 8
+    total_sims = len(categories) * len(opponent_counts)
 
-    for i, key in enumerate(categories, 1):
-        hole = representative_cards(key)
-        eq = simulate_equity(hole)
-        results[key] = round(eq, 4)
-        if i % 13 == 0 or i == len(categories):
-            print(f"  {i}/{len(categories)}  {key} = {results[key]:.4f}")
+    print(f"Computing equity for {len(categories)} hand categories x "
+          f"{len(opponent_counts)} opponent counts "
+          f"({NUM_SIMULATIONS} sims each, {total_sims} total)...")
+
+    results = {}
+    done = 0
+
+    for num_opp in opponent_counts:
+        opp_results = {}
+        for key in categories:
+            hole = representative_cards(key)
+            eq = simulate_equity(hole, num_opp)
+            opp_results[key] = round(eq, 4)
+            done += 1
+            if done % (len(categories) // 4) == 0 or done == total_sims:
+                print(f"  {done}/{total_sims}  {num_opp}opp  {key} = {opp_results[key]:.4f}")
+        results[str(num_opp)] = opp_results
+        print(f"  -- Finished {num_opp} opponent(s) --")
 
     with open("preflop_equity.json", "w") as f:
         json.dump(results, f, indent=2)
 
-    print(f"\nWrote preflop_equity.json ({len(results)} entries)")
+    print(f"\nWrote preflop_equity.json ({len(opponent_counts)} tables x {len(categories)} entries)")
 
 
 if __name__ == "__main__":

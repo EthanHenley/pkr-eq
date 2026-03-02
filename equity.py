@@ -1,5 +1,6 @@
 import json
 import os
+import random
 from itertools import combinations
 from treys import Card, Evaluator
 
@@ -41,8 +42,10 @@ def calculate_equity(hole_cards, community_cards, num_opponents, remaining_cards
     """
     if not community_cards and _PREFLOP_EQUITY:
         key = _hand_key(hole_cards)
-        if key in _PREFLOP_EQUITY:
-            return _PREFLOP_EQUITY[key]
+        opp_key = str(min(num_opponents, 8))
+        table = _PREFLOP_EQUITY.get(opp_key) or _PREFLOP_EQUITY
+        if key in table:
+            return table[key]
 
     board_needed = 5 - len(community_cards)
     remaining = list(remaining_cards)
@@ -53,9 +56,10 @@ def calculate_equity(hole_cards, community_cards, num_opponents, remaining_cards
     # Estimate enumeration size
     from math import comb
     board_combos = comb(len(remaining), board_needed)
-    # If too many combos, sample
+    # If too many combos, sample (fewer board draws for multi-way to stay fast)
     if board_combos > 500:
-        return _equity_sampled(hole_cards, community_cards, num_opponents, remaining, board_needed, sample_size=300)
+        sample_size = 150 if num_opponents > 2 else 300
+        return _equity_sampled(hole_cards, community_cards, num_opponents, remaining, board_needed, sample_size=sample_size)
 
     wins = 0
     ties = 0
@@ -75,7 +79,6 @@ def calculate_equity(hole_cards, community_cards, num_opponents, remaining_cards
 
 
 def _equity_sampled(hole_cards, community_cards, num_opponents, remaining, board_needed, sample_size=300):
-    import random
     wins = 0
     ties = 0
     total = 0
@@ -129,7 +132,6 @@ def calculate_all_equities(hands, community_cards, remaining_cards, sample_size=
     if board_needed == 0:
         return _multiway_equity_fixed(hands, community_cards)
 
-    import random
     from math import comb
 
     board_combos_count = comb(len(remaining), board_needed)
@@ -169,29 +171,41 @@ def _multiway_equity_fixed(hands, board):
 
 
 def _eval_against_opponents(hole_cards, board, num_opponents, deck):
-    """Enumerate opponent hands and count wins/ties.
+    """Count hero wins/ties against num_opponents simultaneous opponents.
 
-    For speed, we limit opponent combos and assume independent single-opponent
-    matchups (1v1 equity approximation for multi-way — good enough for display).
+    For 1 opponent, enumerates hand combos (capped for speed).
+    For multiple opponents, samples complete lineups so hero must beat all of them.
     """
     hero_score = _evaluator.evaluate(board, hole_cards)
-
     wins = 0
     ties = 0
     total = 0
 
-    opponent_combos = list(combinations(deck, 2))
-    # Cap opponent combos for performance
-    if len(opponent_combos) > 500:
-        import random
-        opponent_combos = random.sample(opponent_combos, 500)
-
-    for opp_hand in opponent_combos:
-        opp_score = _evaluator.evaluate(board, list(opp_hand))
-        total += 1
-        if hero_score < opp_score:  # lower is better in treys
-            wins += 1
-        elif hero_score == opp_score:
-            ties += 1
+    if num_opponents == 1:
+        opponent_combos = list(combinations(deck, 2))
+        if len(opponent_combos) > 300:
+            opponent_combos = random.sample(opponent_combos, 300)
+        for opp_hand in opponent_combos:
+            opp_score = _evaluator.evaluate(board, list(opp_hand))
+            total += 1
+            if hero_score < opp_score:  # lower is better in treys
+                wins += 1
+            elif hero_score == opp_score:
+                ties += 1
+    else:
+        cards_needed = num_opponents * 2
+        if len(deck) < cards_needed:
+            return 1, 0, 1
+        for _ in range(100):
+            drawn = random.sample(deck, cards_needed)
+            best_opp = min(
+                _evaluator.evaluate(board, drawn[i * 2: i * 2 + 2])
+                for i in range(num_opponents)
+            )
+            total += 1
+            if hero_score < best_opp:
+                wins += 1
+            elif hero_score == best_opp:
+                ties += 1
 
     return wins, ties, total
